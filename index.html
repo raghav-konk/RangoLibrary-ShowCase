@@ -1,61 +1,60 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Rango Movie Search</title>
+  <title>My Movie & TV Library</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #111; color: white; padding: 20px; }
-    .movie { background: #222; margin: 10px; padding: 10px; border-radius: 5px; }
-    img { width: 100px; border-radius: 5px; }
+    body { font-family: Arial; background: #111; color: #fff; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    .item { background: #222; padding: 10px; border-radius: 8px; text-align: center; }
+    .item img { width: 100%; border-radius: 4px; }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
 <body>
-  <h1>Rango Movie Search</h1>
-  <input type="text" id="query" placeholder="Type movie name" />
-  <button id="searchBtn">Search</button>
-  <div id="results"></div>
 
-  <script>
-    const API_KEY = "127a2db99ba0d45d63c4ad0d4aa18b10"; // Replace with your key
-    const resultsDiv = document.getElementById("results");
+<h1>My Movie & TV Library</h1>
+<div id="results" class="grid"></div>
 
-    document.getElementById("searchBtn").addEventListener("click", () => {
-      const query = document.getElementById("query").value.trim();
-      if (!query) return alert("Please type a movie name");
-      searchMovies(query);
-    });
+<script>
+const API_KEY = "127a2db99ba0d45d63c4ad0d4aa18b10"; // <-- your TMDB API key
+const resultsDiv = document.getElementById("results");
 
-    function searchMovies(query) {
-      const url = `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}&language=en-US`;
-      resultsDiv.innerHTML = "<p>Loading...</p>";
+function fetchAndDisplay(title, type) {
+  fetch(`https://api.themoviedb.org/3/search/${type}?api_key=${API_KEY}&query=${encodeURIComponent(title)}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.results && data.results.length > 0) {
+        let item = data.results[0];
+        let poster = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : '';
+        resultsDiv.innerHTML += `
+          <div class="item">
+            <img src="${poster}" alt="${title}">
+            <p>${title}</p>
+          </div>
+        `;
+      }
+    })
+    .catch(err => console.error(err));
+}
 
-      fetch(url)
-        .then(res => res.json())
-        .then(data => {
-          console.log("API Response:", data); // ✅ Debug log
-          if (!data.results || data.results.length === 0) {
-            resultsDiv.innerHTML = "<p>No movies found.</p>";
-            return;
-          }
-          resultsDiv.innerHTML = "";
-          data.results.forEach(movie => {
-            const movieDiv = document.createElement("div");
-            movieDiv.classList.add("movie");
-            movieDiv.innerHTML = `
-              <h2>${movie.title}</h2>
-              <p>Release Date: ${movie.release_date || "N/A"}</p>
-              <p>${movie.overview || "No description available."}</p>
-              ${movie.poster_path ? `<img src="https://image.tmdb.org/t/p/w200${movie.poster_path}" />` : ""}
-            `;
-            resultsDiv.appendChild(movieDiv);
-          });
-        })
-        .catch(err => {
-          console.error("Fetch Error:", err);
-          resultsDiv.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
-        });
+// Load CSV and process
+function loadCSV(file, titleColumnIndex, type) {
+  Papa.parse(file, {
+    download: true,
+    complete: function(results) {
+      results.data.forEach((row, index) => {
+        if (index > 0 && row[titleColumnIndex]) { // skip header
+          fetchAndDisplay(row[titleColumnIndex], type);
+        }
+      });
     }
-  </script>
+  });
+}
+
+// On page load
+loadCSV("movies.csv", 107, "movie");  // DI column = index 107 (A=0, B=1, ... Z=25, AA=26, etc.)
+loadCSV("tvshows.csv", 45, "tv");    // AT column = index 45
+</script>
+
 </body>
 </html>
