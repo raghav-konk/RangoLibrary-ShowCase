@@ -2,84 +2,101 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Plex Showcase</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-  body { font-family: Arial, sans-serif; background: #111; color: #fff; margin: 0; padding: 0; }
-  h1 { text-align: center; padding: 1em; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 10px; }
-  .card { background: #222; border-radius: 8px; overflow: hidden; text-align: center; }
-  .card img { width: 100%; display: block; }
-  .card h3 { font-size: 14px; padding: 5px; margin: 0; }
-  .search-box { display: block; margin: 10px auto; padding: 8px; width: 90%; max-width: 400px; font-size: 16px; }
-</style>
+<title>Rango Library Showcase</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #111;
+        color: white;
+        margin: 0;
+        padding: 0;
+    }
+    h1 {
+        text-align: center;
+        padding: 20px;
+    }
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        padding: 20px;
+    }
+    .card {
+        background: #222;
+        border-radius: 8px;
+        overflow: hidden;
+        text-align: center;
+    }
+    .card img {
+        width: 100%;
+        height: auto;
+    }
+    .card p {
+        padding: 10px;
+        font-size: 14px;
+    }
+</style>
 </head>
 <body>
 
-<h1>Rango's Movie & TV Collection Showcase - Self Hosted via Plex Pass</h1>
-<input class="search-box" type="text" placeholder="Search..." onkeyup="filterCards(this.value)">
-
+<h1>Rango Library Showcase</h1>
 <div id="movieGrid" class="grid"></div>
 
 <script>
-const TMDB_API_KEY = "127a2db99ba0d45d63c4ad0d4aa18b10"; // <-- replace with your key
-const MOVIES_CSV = "movies.csv";
-const TV_CSV = "tvshows.csv";
-let allCards = [];
+const TMDB_KEY = "127a2db99ba0d45d63c4ad0d4aa18b10"; // <-- Replace this
+const moviesCSV = "movies.csv";       // Should be in same repo
+const tvCSV = "tvshows.csv";          // Should be in same repo
 
-function loadCSV(file, type) {
-    Papa.parse(file, {
-        download: true,
-        header: true,
-        complete: function(results) {
-            results.data.forEach(item => {
-                let title = item.title || item.Name || "";
-                let year = (item.year || item.Year || "").toString().substring(0,4);
-                if (title) fetchPoster(title, year, type);
-            });
+async function fetchCSVandShow() {
+    await parseCSV(moviesCSV, "DI", "movie");
+    await parseCSV(tvCSV, "AT", "tv");
+}
+
+function parseCSV(file, titleColumn, type) {
+    return new Promise((resolve, reject) => {
+        Papa.parse(file, {
+            download: true,
+            header: true,
+            complete: async function(results) {
+                const titles = results.data.map(row => row[titleColumn]).filter(Boolean);
+                for (let title of titles) {
+                    await fetchFromTMDB(title, type);
+                }
+                resolve();
+            },
+            error: reject
+        });
+    });
+}
+
+async function fetchFromTMDB(title, type) {
+    try {
+        const url = `https://api.themoviedb.org/3/search/${type}?api_key=${TMDB_KEY}&query=${encodeURIComponent(title)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.results && data.results.length > 0) {
+            const item = data.results[0];
+            displayCard(item, type);
         }
-    });
+    } catch (err) {
+        console.error(err);
+    }
 }
 
-function fetchPoster(title, year, type) {
-    let query = encodeURIComponent(title);
-    let url = `https://api.themoviedb.org/3/search/${type}?api_key=${TMDB_API_KEY}&query=${query}&year=${year}`;
-    fetch(url)
-        .then(res => res.json())
-        .then(data => {
-            if (data.results && data.results.length > 0) {
-                let posterPath = data.results[0].poster_path
-                    ? `https://image.tmdb.org/t/p/w300${data.results[0].poster_path}`
-                    : "https://via.placeholder.com/300x450?text=No+Image";
-                createCard(title, year, posterPath);
-            }
-        })
-        .catch(err => console.error(err));
-}
-
-function createCard(title, year, poster) {
-    let container = document.getElementById("movieGrid");
-    let card = document.createElement("div");
+function displayCard(item, type) {
+    const grid = document.getElementById("movieGrid");
+    const card = document.createElement("div");
     card.className = "card";
-    card.innerHTML = `<img src="${poster}" alt="${title}"><h3>${title} (${year})</h3>`;
-    container.appendChild(card);
-    allCards.push({ element: card, title: title.toLowerCase() });
+    card.innerHTML = `
+        <img src="https://image.tmdb.org/t/p/w200${item.poster_path}" alt="${item.title || item.name}">
+        <p>${item.title || item.name}</p>
+    `;
+    grid.appendChild(card);
 }
 
-function filterCards(search) {
-    let term = search.toLowerCase();
-    allCards.forEach(obj => {
-        obj.element.style.display = obj.title.includes(term) ? "" : "none";
-    });
-}
-
-// Load both movies and TV
-loadCSV(MOVIES_CSV, "movies");
-loadCSV(TV_CSV, "tvshows");
+fetchCSVandShow();
 </script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 </body>
 </html>
-
